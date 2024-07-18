@@ -16,7 +16,6 @@ interface AudioClassificationListener {
     fun onError(error: String)
     fun onResult(results: List<Category>, inferenceTime: Long)
 }
-
 class AudioClassificationHelper(
     val context: Context,
     val listener: AudioClassificationListener,
@@ -37,36 +36,22 @@ class AudioClassificationHelper(
     }
 
     init {
-        try {
-            initClassifier()
-        } catch (e: Exception) {
-            listener.onError("Failed to initialize classifier: ${e.message}")
-            Log.e("AudioClassificationHelper", "Failed to initialize classifier", e)
-        }
+        initClassifier()
     }
 
     private fun initClassifier() {
         Log.d("AudioClassificationHelper", "Initializing classifier...")
-
-        // Check if the model file exists in assets
-        try {
-            context.assets.open(currentModel).close()
-            Log.d("AudioClassificationHelper", "Model file $currentModel found in assets")
-        } catch (e: Exception) {
-            listener.onError("Model file $currentModel not found in assets: ${e.message}")
-            Log.e("AudioClassificationHelper", "Model file $currentModel not found in assets", e)
-            return
-        }
 
         // Set general detection options, e.g., number of used threads
         val baseOptionsBuilder = BaseOptions.builder().setNumThreads(numThreads)
 
         // Use the specified hardware for running the model. Default to CPU.
         when (currentDelegate) {
-            DELEGATE_CPU -> Log.d("AudioClassificationHelper", "Using CPU for inference")
+            DELEGATE_CPU -> {
+                // No specific options needed for CPU
+            }
             DELEGATE_NNAPI -> {
                 baseOptionsBuilder.useNnapi()
-                Log.d("AudioClassificationHelper", "Using NNAPI for inference")
             }
         }
 
@@ -82,7 +67,7 @@ class AudioClassificationHelper(
             Log.d("AudioClassificationHelper", "Loading model from file and options")
             classifier = AudioClassifier.createFromFileAndOptions(context, currentModel, options)
             tensorAudio = classifier.createInputTensorAudio()
-            recorder = classifier.createAudioRecord()
+            recorder = classifier.createAudioRecord() // Ensure createAudioRecord is called
             startAudioClassification()
             Log.d("AudioClassificationHelper", "Classifier and Recorder initialized successfully")
 
@@ -127,7 +112,7 @@ class AudioClassificationHelper(
             executor = ScheduledThreadPoolExecutor(1)
 
             val lengthInMilliSeconds = ((classifier.requiredInputBufferSize * 1.0f) /
-                    classifier.requiredTensorAudioFormat.sampleRate) * 1000
+                    classifier.requiredTensorAudioFormat.sampleRate) * 3000
 
             val interval = (lengthInMilliSeconds * (1 - overlap)).toLong()
 
@@ -187,19 +172,24 @@ class AudioClassificationHelper(
     }
 
     fun updateNumThreads(numThreads: Int) {
+        stopAudioClassification();
         this.numThreads = numThreads
         initClassifier()
     }
 
     fun updateNumOfResults(numOfResults: Int) {
+        stopAudioClassification();
         this.numOfResults = numOfResults
         initClassifier()
     }
 
     fun updateDisplayThreshold(displayThreshold: Float) {
+        stopAudioClassification();
         this.classificationThreshold = displayThreshold
         initClassifier()
     }
+
+
 
     companion object {
         const val DELEGATE_CPU = 0
